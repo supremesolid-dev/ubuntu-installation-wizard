@@ -32,39 +32,39 @@ validate_ip() {
   fi
 
   local IFS='.'
-  read -ra octets <<< "${ip}"
+  read -ra octets <<<"${ip}"
   for octet in "${octets[@]}"; do
-      if ! [[ "${octet}" =~ ^[0-9]+$ ]] || (( octet < 0 || octet > 255 )); then
-          error_exit "Endereço IP inválido: ${ip}. Octeto '${octet}' fora do intervalo 0-255."
-      fi
+    if ! [[ "${octet}" =~ ^[0-9]+$ ]] || ((octet < 0 || octet > 255)); then
+      error_exit "Endereço IP inválido: ${ip}. Octeto '${octet}' fora do intervalo 0-255."
+    fi
   done
   IFS=' '
 }
 
 validate_port() {
   local port="${1}"
-  if ! [[ "${port}" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+  if ! [[ "${port}" =~ ^[0-9]+$ ]] || ((port < 1 || port > 65535)); then
     error_exit "Porta inválida: ${port}. Use um número entre 1 e 65535."
   fi
 }
 
 if [[ $# -eq 0 ]]; then
-    usage
+  usage
 fi
 
 while [[ $# -gt 0 ]]; do
   case "${1}" in
-    --vhost-server-ip=*)
-      VHOST_IP="${1#*=}"
-      shift
-      ;;
-    --vhost-server-port=*)
-      VHOST_PORT="${1#*=}"
-      shift
-      ;;
-    *)
-      error_exit "Argumento desconhecido: ${1}"
-      ;;
+  --vhost-server-ip=*)
+    VHOST_IP="${1#*=}"
+    shift
+    ;;
+  --vhost-server-port=*)
+    VHOST_PORT="${1#*=}"
+    shift
+    ;;
+  *)
+    error_exit "Argumento desconhecido: ${1}"
+    ;;
   esac
 done
 
@@ -82,7 +82,7 @@ validate_ip "${VHOST_IP}"
 validate_port "${VHOST_PORT}"
 
 if [[ ${EUID} -ne 0 ]]; then
-   error_exit "Este script precisa ser executado como root (ou com sudo)."
+  error_exit "Este script precisa ser executado como root (ou com sudo)."
 fi
 
 echo ">>> Iniciando instalação e configuração do Nginx..."
@@ -96,7 +96,7 @@ apt-get install -y nginx || error_exit "Falha ao instalar o Nginx."
 CONFIG_FILE_PATH="${NGINX_SITES_AVAILABLE}/${DEFAULT_VHOST_NAME}"
 echo ">>> Criando arquivo de configuração: ${CONFIG_FILE_PATH}"
 
-bash -c "cat > ${CONFIG_FILE_PATH}" << EOF
+bash -c "cat > ${CONFIG_FILE_PATH}" <<EOF
 server {
     listen ${VHOST_IP}:${VHOST_PORT} default_server;
 

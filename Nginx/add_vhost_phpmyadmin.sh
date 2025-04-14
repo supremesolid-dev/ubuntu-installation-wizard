@@ -18,7 +18,10 @@ RESET="\e[0m"
 # === Funções de Log ===
 log() { echo -e "${GREEN}[✔]${RESET} $1"; }
 warn() { echo -e "${YELLOW}[⚠]${RESET} $1"; }
-error_exit() { echo -e "${RED}[✖]${RESET} $1"; exit 1; }
+error_exit() {
+  echo -e "${RED}[✖]${RESET} $1"
+  exit 1
+}
 info() { echo -e "${BLUE}[ℹ]${RESET} $1"; }
 
 # === Funções Auxiliares ===
@@ -45,9 +48,9 @@ validate_ipv4() {
     error_exit "Formato de endereço IP inválido: ${ip}. Use o formato X.X.X.X."
   fi
   local IFS='.'
-  read -ra octets <<< "${ip}"
+  read -ra octets <<<"${ip}"
   for octet in "${octets[@]}"; do
-    if ! [[ "${octet}" =~ ^[0-9]+$ ]] || (( octet < 0 || octet > 255 )); then
+    if ! [[ "${octet}" =~ ^[0-9]+$ ]] || ((octet < 0 || octet > 255)); then
       error_exit "Endereço IP inválido: ${ip}. Octeto '${octet}' fora do intervalo 0-255."
     fi
   done
@@ -57,44 +60,44 @@ validate_ipv4() {
 # Valida formato da porta
 validate_port() {
   local port="${1}"
-  if ! [[ "${port}" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+  if ! [[ "${port}" =~ ^[0-9]+$ ]] || ((port < 1 || port > 65535)); then
     error_exit "Porta inválida: ${port}. Use um número entre 1 e 65535."
   fi
 }
 
 # Valida formato do domínio (básico)
 validate_domain() {
-    local domain="${1}"
-    # Permite letras, números, hífens e pontos. Não valida estritamente TLDs ou posição de hífens/pontos.
-    local domain_regex='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
-    if ! [[ "${domain}" =~ ${domain_regex} ]]; then
-        error_exit "Formato de domínio inválido: ${domain}"
-    fi
+  local domain="${1}"
+  # Permite letras, números, hífens e pontos. Não valida estritamente TLDs ou posição de hífens/pontos.
+  local domain_regex='^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$'
+  if ! [[ "${domain}" =~ ${domain_regex} ]]; then
+    error_exit "Formato de domínio inválido: ${domain}"
+  fi
 }
 
 # Verifica se o diretório existe
 validate_path() {
-    local path="${1}"
-    if [[ ! -d "${path}" ]]; then
-        error_exit "Diretório raiz não encontrado ou não é um diretório: ${path}"
-    fi
-    # Poderia adicionar verificação de permissões de leitura para www-data aqui se necessário
+  local path="${1}"
+  if [[ ! -d "${path}" ]]; then
+    error_exit "Diretório raiz não encontrado ou não é um diretório: ${path}"
+  fi
+  # Poderia adicionar verificação de permissões de leitura para www-data aqui se necessário
 }
 
 # Valida formato da versão PHP e existência do socket FPM
 validate_php() {
-    local version="${1}"
-    local php_regex='^[0-9]+\.[0-9]+$'
-    if ! [[ "${version}" =~ ${php_regex} ]]; then
-        error_exit "Formato da versão PHP inválido: ${version}. Use X.Y (ex: 8.1)."
-    fi
+  local version="${1}"
+  local php_regex='^[0-9]+\.[0-9]+$'
+  if ! [[ "${version}" =~ ${php_regex} ]]; then
+    error_exit "Formato da versão PHP inválido: ${version}. Use X.Y (ex: 8.1)."
+  fi
 
-    local fpm_sock="/run/php/php${version}-fpm.sock"
-    if [[ ! -S "${fpm_sock}" ]]; then
-        error_exit "Socket PHP-FPM não encontrado para a versão ${version} em: ${fpm_sock}. Verifique se o serviço PHP-FPM está instalado e rodando."
-    fi
-    # Retorna o caminho do socket validado para uso posterior
-    PHP_FPM_SOCK_VALIDATED="${fpm_sock}"
+  local fpm_sock="/run/php/php${version}-fpm.sock"
+  if [[ ! -S "${fpm_sock}" ]]; then
+    error_exit "Socket PHP-FPM não encontrado para a versão ${version} em: ${fpm_sock}. Verifique se o serviço PHP-FPM está instalado e rodando."
+  fi
+  # Retorna o caminho do socket validado para uso posterior
+  PHP_FPM_SOCK_VALIDATED="${fpm_sock}"
 }
 
 # === Verificação Inicial ===
@@ -105,9 +108,9 @@ check_root() {
 }
 
 check_nginx_installed() {
-    if ! command -v nginx &> /dev/null; then
-        error_exit "Comando 'nginx' não encontrado. O Nginx está instalado e no PATH?"
-    fi
+  if ! command -v nginx &>/dev/null; then
+    error_exit "Comando 'nginx' não encontrado. O Nginx está instalado e no PATH?"
+  fi
 }
 
 # === Processamento dos Argumentos ===
@@ -119,37 +122,37 @@ VHOST_PHP_VERSION=""
 
 # Se nenhum argumento for passado, exibe ajuda
 if [[ $# -eq 0 ]]; then
-    usage
+  usage
 fi
 
 while [[ $# -gt 0 ]]; do
   case "${1}" in
-    --vhost-server-ip=*)
-      VHOST_SERVER_IP="${1#*=}"
-      shift
-      ;;
-    --vhost-server-port=*)
-      VHOST_SERVER_PORT="${1#*=}"
-      shift
-      ;;
-    --vhost-server-domain=*)
-      VHOST_SERVER_DOMAIN="${1#*=}"
-      shift
-      ;;
-    --vhost-server-path=*)
-      VHOST_SERVER_PATH="${1#*=}"
-      shift
-      ;;
-    --vhost-php-version=*)
-      VHOST_PHP_VERSION="${1#*=}"
-      shift
-      ;;
-    --help|-h)
-      usage
-      ;;
-    *)
-      error_exit "Argumento desconhecido: ${1}"
-      ;;
+  --vhost-server-ip=*)
+    VHOST_SERVER_IP="${1#*=}"
+    shift
+    ;;
+  --vhost-server-port=*)
+    VHOST_SERVER_PORT="${1#*=}"
+    shift
+    ;;
+  --vhost-server-domain=*)
+    VHOST_SERVER_DOMAIN="${1#*=}"
+    shift
+    ;;
+  --vhost-server-path=*)
+    VHOST_SERVER_PATH="${1#*=}"
+    shift
+    ;;
+  --vhost-php-version=*)
+    VHOST_PHP_VERSION="${1#*=}"
+    shift
+    ;;
+  --help | -h)
+    usage
+    ;;
+  *)
+    error_exit "Argumento desconhecido: ${1}"
+    ;;
   esac
 done
 
@@ -168,26 +171,26 @@ log "Parâmetros validados com sucesso."
 
 # === Lógica Principal ===
 main() {
-    check_root
-    check_nginx_installed
+  check_root
+  check_nginx_installed
 
-    local vhost_file_name="${VHOST_SERVER_DOMAIN}.conf" # Adiciona .conf para clareza
-    local vhost_file_path="${NGINX_SITES_AVAILABLE}/${vhost_file_name}"
-    local vhost_symlink_path="${NGINX_SITES_ENABLED}/${vhost_file_name}"
+  local vhost_file_name="${VHOST_SERVER_DOMAIN}.conf" # Adiciona .conf para clareza
+  local vhost_file_path="${NGINX_SITES_AVAILABLE}/${vhost_file_name}"
+  local vhost_symlink_path="${NGINX_SITES_ENABLED}/${vhost_file_name}"
 
-    info "Verificando se o arquivo de configuração já existe: ${vhost_file_path}"
-    if [[ -f "${vhost_file_path}" ]]; then
-        warn "Arquivo de configuração ${vhost_file_path} já existe. Ele será sobrescrito."
-        # Poderia adicionar uma opção --force ou perguntar ao usuário aqui
-    fi
+  info "Verificando se o arquivo de configuração já existe: ${vhost_file_path}"
+  if [[ -f "${vhost_file_path}" ]]; then
+    warn "Arquivo de configuração ${vhost_file_path} já existe. Ele será sobrescrito."
+    # Poderia adicionar uma opção --force ou perguntar ao usuário aqui
+  fi
 
-    log "Criando arquivo de configuração Nginx para ${VHOST_SERVER_DOMAIN}..."
+  log "Criando arquivo de configuração Nginx para ${VHOST_SERVER_DOMAIN}..."
 
-    # Cria o diretório de logs Nginx se não existir
-    mkdir -p "${NGINX_LOG_DIR}" || error_exit "Falha ao criar diretório de logs: ${NGINX_LOG_DIR}"
+  # Cria o diretório de logs Nginx se não existir
+  mkdir -p "${NGINX_LOG_DIR}" || error_exit "Falha ao criar diretório de logs: ${NGINX_LOG_DIR}"
 
-    # Heredoc para criar o arquivo de configuração
-    cat > "${vhost_file_path}" <<EOF || error_exit "Falha ao escrever no arquivo de configuração ${vhost_file_path}"
+  # Heredoc para criar o arquivo de configuração
+  cat >"${vhost_file_path}" <<EOF || error_exit "Falha ao escrever no arquivo de configuração ${vhost_file_path}"
 # Configuração para ${VHOST_SERVER_DOMAIN}
 # Gerado por script em $(date)
 
@@ -232,53 +235,53 @@ server {
 }
 EOF
 
-    log "Arquivo ${vhost_file_path} criado."
+  log "Arquivo ${vhost_file_path} criado."
 
-    info "Ativando o site (criando link simbólico)..."
-    # Usar -sf para forçar a criação/substituição do link
-    ln -sf "${vhost_file_path}" "${vhost_symlink_path}" || error_exit "Falha ao criar link simbólico em ${NGINX_SITES_ENABLED}."
-    log "Site ${VHOST_SERVER_DOMAIN} ativado."
+  info "Ativando o site (criando link simbólico)..."
+  # Usar -sf para forçar a criação/substituição do link
+  ln -sf "${vhost_file_path}" "${vhost_symlink_path}" || error_exit "Falha ao criar link simbólico em ${NGINX_SITES_ENABLED}."
+  log "Site ${VHOST_SERVER_DOMAIN} ativado."
 
-    info "Testando configuração do Nginx..."
-    if nginx -t; then
-        log "Configuração do Nginx OK."
-        info "Recarregando configuração do Nginx..."
-        if systemctl reload nginx; then
-            log "Nginx recarregado com sucesso."
-        else
-            error_exit "Falha ao recarregar o Nginx (systemctl reload nginx)."
-        fi
+  info "Testando configuração do Nginx..."
+  if nginx -t; then
+    log "Configuração do Nginx OK."
+    info "Recarregando configuração do Nginx..."
+    if systemctl reload nginx; then
+      log "Nginx recarregado com sucesso."
     else
-        # nginx -t já imprime os erros detalhados no stderr
-        error_exit "Teste de configuração do Nginx falhou. Verifique os erros acima."
+      error_exit "Falha ao recarregar o Nginx (systemctl reload nginx)."
     fi
+  else
+    # nginx -t já imprime os erros detalhados no stderr
+    error_exit "Teste de configuração do Nginx falhou. Verifique os erros acima."
+  fi
 
-    echo ""
-    log "VirtualHost para ${VHOST_SERVER_DOMAIN} configurado com sucesso!"
-    info "Detalhes:"
-    info "  - Escutando em: ${VHOST_SERVER_IP}:${VHOST_SERVER_PORT}"
-    info "  - Domínio: ${VHOST_SERVER_DOMAIN}"
-    info "  - Raiz do Site: ${VHOST_SERVER_PATH}"
-    info "  - PHP-FPM: ${PHP_FPM_SOCK_VALIDATED} (Versão ${VHOST_PHP_VERSION})"
-    info "  - Arquivo Conf: ${vhost_file_path}"
-    info "  - Link Ativo: ${vhost_symlink_path}"
-    info "  - Logs: ${NGINX_LOG_DIR}/${VHOST_SERVER_DOMAIN}.*"
+  echo ""
+  log "VirtualHost para ${VHOST_SERVER_DOMAIN} configurado com sucesso!"
+  info "Detalhes:"
+  info "  - Escutando em: ${VHOST_SERVER_IP}:${VHOST_SERVER_PORT}"
+  info "  - Domínio: ${VHOST_SERVER_DOMAIN}"
+  info "  - Raiz do Site: ${VHOST_SERVER_PATH}"
+  info "  - PHP-FPM: ${PHP_FPM_SOCK_VALIDATED} (Versão ${VHOST_PHP_VERSION})"
+  info "  - Arquivo Conf: ${vhost_file_path}"
+  info "  - Link Ativo: ${vhost_symlink_path}"
+  info "  - Logs: ${NGINX_LOG_DIR}/${VHOST_SERVER_DOMAIN}.*"
 
-    # Tenta determinar um protocolo http/https para a mensagem final
-    local access_protocol="http"
-    if [[ "${VHOST_SERVER_PORT}" == "443" ]]; then
-        access_protocol="https"
-    fi
-    # Nota: Este script não configura SSL. A porta 443 aqui é apenas um palpite.
+  # Tenta determinar um protocolo http/https para a mensagem final
+  local access_protocol="http"
+  if [[ "${VHOST_SERVER_PORT}" == "443" ]]; then
+    access_protocol="https"
+  fi
+  # Nota: Este script não configura SSL. A porta 443 aqui é apenas um palpite.
 
-    echo ""
-    info "${YELLOW}Acesse o site (após configurar DNS/hosts se necessário):${RESET} ${access_protocol}://${VHOST_SERVER_DOMAIN}:${VHOST_SERVER_PORT}"
-    # Adiciona a porta apenas se não for 80 (http) ou 443 (https)
-    local access_url="${access_protocol}://${VHOST_SERVER_DOMAIN}"
-    if [[ "${VHOST_SERVER_PORT}" != "80" && "${VHOST_SERVER_PORT}" != "443" ]]; then
-      access_url+=":${VHOST_SERVER_PORT}"
-    fi
-     info "${YELLOW}Acesse o site (após configurar DNS/hosts se necessário):${RESET} ${access_url}"
+  echo ""
+  info "${YELLOW}Acesse o site (após configurar DNS/hosts se necessário):${RESET} ${access_protocol}://${VHOST_SERVER_DOMAIN}:${VHOST_SERVER_PORT}"
+  # Adiciona a porta apenas se não for 80 (http) ou 443 (https)
+  local access_url="${access_protocol}://${VHOST_SERVER_DOMAIN}"
+  if [[ "${VHOST_SERVER_PORT}" != "80" && "${VHOST_SERVER_PORT}" != "443" ]]; then
+    access_url+=":${VHOST_SERVER_PORT}"
+  fi
+  info "${YELLOW}Acesse o site (após configurar DNS/hosts se necessário):${RESET} ${access_url}"
 
 }
 

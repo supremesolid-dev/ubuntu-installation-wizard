@@ -34,45 +34,45 @@ validate_ip() {
   fi
 
   if [[ "${ip}" != "0.0.0.0" ]]; then
-      local IFS='.'
-      read -ra octets <<< "${ip}"
-      for octet in "${octets[@]}"; do
-          if ! [[ "${octet}" =~ ^[0-9]+$ ]] || (( octet < 0 || octet > 255 )); then
-              error_exit "Endereço IP inválido: ${ip}. Octeto '${octet}' fora do intervalo 0-255."
-          fi
-      done
-      IFS=' '
+    local IFS='.'
+    read -ra octets <<<"${ip}"
+    for octet in "${octets[@]}"; do
+      if ! [[ "${octet}" =~ ^[0-9]+$ ]] || ((octet < 0 || octet > 255)); then
+        error_exit "Endereço IP inválido: ${ip}. Octeto '${octet}' fora do intervalo 0-255."
+      fi
+    done
+    IFS=' '
   fi
 }
 
 validate_port() {
   local port="${1}"
-  if ! [[ "${port}" =~ ^[0-9]+$ ]] || (( port < 1 || port > 65535 )); then
+  if ! [[ "${port}" =~ ^[0-9]+$ ]] || ((port < 1 || port > 65535)); then
     error_exit "Porta inválida: ${port}. Use um número entre 1 e 65535."
   fi
 }
 
 if [[ $# -eq 0 ]]; then
-    usage
+  usage
 fi
 
 while [[ $# -gt 0 ]]; do
   case "${1}" in
-    --bind-address-ip=*)
-      BIND_IP="${1#*=}"
-      shift
-      ;;
-    --bind-port=*)
-      BIND_PORT="${1#*=}"
-      shift
-      ;;
-    --password-root=*)
-      MYSQL_ROOT_PASSWORD="${1#*=}"
-      shift
-      ;;
-    *)
-      error_exit "Argumento desconhecido: ${1}"
-      ;;
+  --bind-address-ip=*)
+    BIND_IP="${1#*=}"
+    shift
+    ;;
+  --bind-port=*)
+    BIND_PORT="${1#*=}"
+    shift
+    ;;
+  --password-root=*)
+    MYSQL_ROOT_PASSWORD="${1#*=}"
+    shift
+    ;;
+  *)
+    error_exit "Argumento desconhecido: ${1}"
+    ;;
   esac
 done
 
@@ -93,13 +93,13 @@ validate_ip "${BIND_IP}"
 validate_port "${BIND_PORT}"
 
 if [[ ${EUID} -ne 0 ]]; then
-   error_exit "Este script precisa ser executado como root (ou com sudo)."
+  error_exit "Este script precisa ser executado como root (ou com sudo)."
 fi
 
 echo ">>> Iniciando instalação e configuração do MySQL Server..."
 echo ">>> Pré-configurando senha root para instalação não interativa..."
-debconf-set-selections <<< "mysql-server mysql-server/root_password password ${MYSQL_ROOT_PASSWORD}"
-debconf-set-selections <<< "mysql-server mysql-server/root_password_again password ${MYSQL_ROOT_PASSWORD}"
+debconf-set-selections <<<"mysql-server mysql-server/root_password password ${MYSQL_ROOT_PASSWORD}"
+debconf-set-selections <<<"mysql-server mysql-server/root_password_again password ${MYSQL_ROOT_PASSWORD}"
 
 echo ">>> Senha root pré-configurada."
 
@@ -113,23 +113,23 @@ apt-get install -y mysql-server mysql-client || error_exit "Falha ao instalar o 
 
 echo ">>> Configurando bind-address e port em ${MYSQL_CONFIG_FILE}..."
 if [[ ! -f "${MYSQL_CONFIG_FILE}" ]]; then
-    error_exit "Arquivo de configuração do MySQL não encontrado: ${MYSQL_CONFIG_FILE}"
+  error_exit "Arquivo de configuração do MySQL não encontrado: ${MYSQL_CONFIG_FILE}"
 fi
 
 if grep -qE "^\s*\[mysqld\]" "${MYSQL_CONFIG_FILE}"; then
-    if grep -qE "^\s*[#]?\s*bind-address\s*=" "${MYSQL_CONFIG_FILE}"; then
-        sed -i -E "s/^\s*[#]?\s*bind-address\s*=.*/bind-address = ${BIND_IP}/" "${MYSQL_CONFIG_FILE}"
-    else
-        sed -i "/^\s*\[mysqld\]/a bind-address = ${BIND_IP}" "${MYSQL_CONFIG_FILE}"
-    fi
+  if grep -qE "^\s*[#]?\s*bind-address\s*=" "${MYSQL_CONFIG_FILE}"; then
+    sed -i -E "s/^\s*[#]?\s*bind-address\s*=.*/bind-address = ${BIND_IP}/" "${MYSQL_CONFIG_FILE}"
+  else
+    sed -i "/^\s*\[mysqld\]/a bind-address = ${BIND_IP}" "${MYSQL_CONFIG_FILE}"
+  fi
 
-    if grep -qE "^\s*[#]?\s*port\s*=" "${MYSQL_CONFIG_FILE}"; then
-        sed -i -E "s/^\s*[#]?\s*port\s*=.*/port = ${BIND_PORT}/" "${MYSQL_CONFIG_FILE}"
-    else
-        sed -i "/^\s*bind-address\s*=/a port = ${BIND_PORT}" "${MYSQL_CONFIG_FILE}"
-    fi
+  if grep -qE "^\s*[#]?\s*port\s*=" "${MYSQL_CONFIG_FILE}"; then
+    sed -i -E "s/^\s*[#]?\s*port\s*=.*/port = ${BIND_PORT}/" "${MYSQL_CONFIG_FILE}"
+  else
+    sed -i "/^\s*bind-address\s*=/a port = ${BIND_PORT}" "${MYSQL_CONFIG_FILE}"
+  fi
 else
-    error_exit "Seção [mysqld] não encontrada em ${MYSQL_CONFIG_FILE}. Não é possível configurar bind-address/port."
+  error_exit "Seção [mysqld] não encontrada em ${MYSQL_CONFIG_FILE}. Não é possível configurar bind-address/port."
 fi
 
 echo ">>> Configuração de rede atualizada."

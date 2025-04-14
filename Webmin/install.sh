@@ -9,10 +9,13 @@ BLUE="\033[1;34m"
 NC="\033[0m"
 
 # Funções de log
-log()   { echo -e "${GREEN}[INFO]${NC} $1"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
-error() { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
-info()  { echo -e "${BLUE}[NOTE]${NC} $1"; }
+log() { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
+error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+    exit 1
+}
+info() { echo -e "${BLUE}[NOTE]${NC} $1"; }
 
 # Verificação de root
 if [ "$EUID" -ne 0 ]; then
@@ -20,7 +23,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Verificação de sistema
-if ! command -v apt-get &> /dev/null; then
+if ! command -v apt-get &>/dev/null; then
     error "Este script é apenas para sistemas baseados em Debian/Ubuntu"
 fi
 
@@ -66,4 +69,3 @@ else
     warn "Webmin instalado mas o serviço não está rodando"
     info "Tente iniciar manualmente: systemctl start webmin"
 fi
-

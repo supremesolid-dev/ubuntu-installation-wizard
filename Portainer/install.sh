@@ -19,7 +19,10 @@ NC="\033[0m" # No Color
 # === Funções de Log ===
 log() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; } # Avisos vão para stderr
-error() { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; } # Erros vão para stderr
+error() {
+  echo -e "${RED}[ERROR]${NC} $1" >&2
+  exit 1
+} # Erros vão para stderr
 info() { echo -e "${BLUE}[NOTE]${NC} $1"; }
 
 # === Funções Auxiliares ===
@@ -63,9 +66,9 @@ validate_ipv4() {
     error "Formato de endereço IP inválido: ${ip}. Use o formato X.X.X.X."
   fi
   local IFS='.'
-  read -ra octets <<< "${ip}"
+  read -ra octets <<<"${ip}"
   for octet in "${octets[@]}"; do
-    if ! [[ "${octet}" =~ ^[0-9]+$ ]] || (( octet < 0 || octet > 255 )); then
+    if ! [[ "${octet}" =~ ^[0-9]+$ ]] || ((octet < 0 || octet > 255)); then
       error "Endereço IP inválido: ${ip}. Octeto '${octet}' fora do intervalo 0-255."
     fi
   done
@@ -75,16 +78,16 @@ validate_ipv4() {
 # Função de limpeza em caso de interrupção (Ctrl+C)
 # Tenta remover o container *se* ele foi criado por este script (ou já existia e foi parado)
 cleanup_on_interrupt() {
-    warn "Script interrompido. Tentando limpar o container ${PORTAINER_NAME}..."
-    # Verifica se o container existe antes de tentar remover
-    if docker ps -a --filter "name=^/${PORTAINER_NAME}$" --format '{{.Names}}' | grep -q "^${PORTAINER_NAME}$"; then
-        log "Removendo container ${PORTAINER_NAME} devido à interrupção..."
-        docker rm -f "${PORTAINER_NAME}" >/dev/null || warn "Não foi possível remover o container ${PORTAINER_NAME} na limpeza."
-    else
-        info "Container ${PORTAINER_NAME} não encontrado para remoção na limpeza."
-    fi
-    # Nota: Não removemos o volume em interrupções para evitar perda de dados acidental.
-    exit 1 # Sai com status de erro após interrupção
+  warn "Script interrompido. Tentando limpar o container ${PORTAINER_NAME}..."
+  # Verifica se o container existe antes de tentar remover
+  if docker ps -a --filter "name=^/${PORTAINER_NAME}$" --format '{{.Names}}' | grep -q "^${PORTAINER_NAME}$"; then
+    log "Removendo container ${PORTAINER_NAME} devido à interrupção..."
+    docker rm -f "${PORTAINER_NAME}" >/dev/null || warn "Não foi possível remover o container ${PORTAINER_NAME} na limpeza."
+  else
+    info "Container ${PORTAINER_NAME} não encontrado para remoção na limpeza."
+  fi
+  # Nota: Não removemos o volume em interrupções para evitar perda de dados acidental.
+  exit 1 # Sai com status de erro após interrupção
 }
 
 # === Configuração Inicial ===
@@ -92,19 +95,19 @@ IP_ADDRESS="${DEFAULT_IP_ADDRESS}" # Define o padrão
 
 # Processar argumentos da linha de comando
 while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --ip=*)
-            IP_ADDRESS="${1#*=}"
-            shift
-            ;;
-        --help|-h)
-            usage
-            ;;
-        *)
-            # Ignora opções desconhecidas ou passa para o help? Vamos ser estritos.
-            error "Opção inválida: $1. Use -h ou --help para ver as opções válidas."
-            ;;
-    esac
+  case "$1" in
+  --ip=*)
+    IP_ADDRESS="${1#*=}"
+    shift
+    ;;
+  --help | -h)
+    usage
+    ;;
+  *)
+    # Ignora opções desconhecidas ou passa para o help? Vamos ser estritos.
+    error "Opção inválida: $1. Use -h ou --help para ver as opções válidas."
+    ;;
+  esac
 done
 
 # === Validações ===
@@ -128,23 +131,23 @@ info "  - Portas:      ${IP_ADDRESS}:8000 -> 8000 | ${IP_ADDRESS}:9443 -> 9443"
 
 # 1. Verificar/Parar/Remover Container Existente (Idempotência/Atualização)
 if docker ps -a --filter "name=^/${PORTAINER_NAME}$" --format '{{.Names}}' | grep -q "^${PORTAINER_NAME}$"; then
-    warn "Container ${PORTAINER_NAME} já existe."
-    log "Parando o container ${PORTAINER_NAME} para atualização/recriação..."
-    docker stop "${PORTAINER_NAME}" >/dev/null || warn "Não foi possível parar o container (pode já estar parado)."
-    log "Removendo o container ${PORTAINER_NAME}..."
-    docker rm "${PORTAINER_NAME}" >/dev/null || error "Falha ao remover o container existente ${PORTAINER_NAME}."
-    log "Container existente removido."
+  warn "Container ${PORTAINER_NAME} já existe."
+  log "Parando o container ${PORTAINER_NAME} para atualização/recriação..."
+  docker stop "${PORTAINER_NAME}" >/dev/null || warn "Não foi possível parar o container (pode já estar parado)."
+  log "Removendo o container ${PORTAINER_NAME}..."
+  docker rm "${PORTAINER_NAME}" >/dev/null || error "Falha ao remover o container existente ${PORTAINER_NAME}."
+  log "Container existente removido."
 else
-    log "Nenhum container ${PORTAINER_NAME} existente encontrado."
+  log "Nenhum container ${PORTAINER_NAME} existente encontrado."
 fi
 
 # 2. Criar Volume (se não existir)
 if ! docker volume ls --filter "name=^${PORTAINER_VOLUME}$" --format '{{.Name}}' | grep -q "^${PORTAINER_VOLUME}$"; then
-    log "Criando volume Docker '${PORTAINER_VOLUME}'..."
-    docker volume create "${PORTAINER_VOLUME}" || error "Falha ao criar o volume ${PORTAINER_VOLUME}."
-    log "Volume ${PORTAINER_VOLUME} criado."
+  log "Criando volume Docker '${PORTAINER_VOLUME}'..."
+  docker volume create "${PORTAINER_VOLUME}" || error "Falha ao criar o volume ${PORTAINER_VOLUME}."
+  log "Volume ${PORTAINER_VOLUME} criado."
 else
-    log "Volume ${PORTAINER_VOLUME} já existe."
+  log "Volume ${PORTAINER_VOLUME} já existe."
 fi
 
 # 3. Baixar/Atualizar Imagem
@@ -168,9 +171,9 @@ container_id=$(docker run -d \
 # Verificar se o comando docker run falhou (retorna $? != 0)
 # set -e já cuidaria disso, mas uma verificação explícita é mais clara
 if [[ $? -ne 0 ]]; then
-    # Rollback específico para falha no run: tenta remover o container recém-criado se ele chegou a ser criado
-    error "Falha ao iniciar o container Portainer. Verifique as mensagens de erro do Docker acima. Pode haver conflito de portas ou problemas com o docker.sock."
-    # O trap não será mais chamado aqui porque saímos com error()
+  # Rollback específico para falha no run: tenta remover o container recém-criado se ele chegou a ser criado
+  error "Falha ao iniciar o container Portainer. Verifique as mensagens de erro do Docker acima. Pode haver conflito de portas ou problemas com o docker.sock."
+  # O trap não será mais chamado aqui porque saímos com error()
 fi
 
 log "Container ${PORTAINER_NAME} iniciado com ID: ${container_id:0:12}" # Mostra ID curto
@@ -180,10 +183,10 @@ info "Aguardando o container iniciar completamente..."
 sleep 5 # Pequena pausa para dar tempo ao container de iniciar
 
 if ! docker ps --filter "name=^/${PORTAINER_NAME}$" --filter "status=running" --format '{{.Names}}' | grep -q "^${PORTAINER_NAME}$"; then
-    # Se falhar, mostrar logs pode ajudar no diagnóstico
-    warn "Container ${PORTAINER_NAME} não está no estado 'running'. Verificando logs..."
-    docker logs "${PORTAINER_NAME}" || warn "Não foi possível obter logs do container ${PORTAINER_NAME}."
-    error "Falha ao verificar o status 'running' do container ${PORTAINER_NAME}."
+  # Se falhar, mostrar logs pode ajudar no diagnóstico
+  warn "Container ${PORTAINER_NAME} não está no estado 'running'. Verificando logs..."
+  docker logs "${PORTAINER_NAME}" || warn "Não foi possível obter logs do container ${PORTAINER_NAME}."
+  error "Falha ao verificar o status 'running' do container ${PORTAINER_NAME}."
 fi
 
 log "Container ${PORTAINER_NAME} está em execução."

@@ -75,10 +75,10 @@ main() {
   # PECL geralmente cria o arquivo .ini em mods-available.
   # Verificamos se ele existe antes de tentar habilitar.
   if [[ ! -f "${PAM_INI_FILE}" ]]; then
-       # Se PECL não criou, podemos tentar criar (menos comum hoje em dia)
-       echo "AVISO: Arquivo ${PAM_INI_FILE} não encontrado após 'pecl install'. Tentando criar."
-       # Esta linha pode não ser necessária se pecl install funcionou corretamente.
-       echo "extension=pam.so" > "${PAM_INI_FILE}" || error_exit "Falha ao criar ${PAM_INI_FILE}."
+    # Se PECL não criou, podemos tentar criar (menos comum hoje em dia)
+    echo "AVISO: Arquivo ${PAM_INI_FILE} não encontrado após 'pecl install'. Tentando criar."
+    # Esta linha pode não ser necessária se pecl install funcionou corretamente.
+    echo "extension=pam.so" >"${PAM_INI_FILE}" || error_exit "Falha ao criar ${PAM_INI_FILE}."
   fi
   # Habilita o módulo para todos os SAPIs disponíveis (CLI, FPM, etc.)
   phpenmod pam || error_exit "Falha ao executar phpenmod para a extensão PAM."

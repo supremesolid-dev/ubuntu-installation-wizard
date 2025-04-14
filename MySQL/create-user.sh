@@ -6,7 +6,7 @@ set -euo pipefail
 TARGET_MYSQL_USER=""
 TARGET_MYSQL_PASSWORD=""
 PERMISSION_LEVEL=""
-TARGET_DATABASE="" 
+TARGET_DATABASE=""
 MYSQL_HOST="localhost"
 AUTH_PLUGIN="mysql_native_password"
 readonly ROOT_MY_CNF="/root/.my.cnf"
@@ -44,38 +44,38 @@ usage() {
 
 # === Processamento dos Argumentos ===
 if [[ $# -eq 0 ]]; then
-    usage
+  usage
 fi
 
 while [[ $# -gt 0 ]]; do
   case "${1}" in
-    --mysql-user=*)
-      TARGET_MYSQL_USER="${1#*=}"
-      shift
-      ;;
-    --mysql-password=*)
-      TARGET_MYSQL_PASSWORD="${1#*=}"
-      shift
-      ;;
-    --permission-level=*)
-      PERMISSION_LEVEL=$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]') # Converte para minúsculas
-      shift
-      ;;
-    --database=*)
-      TARGET_DATABASE="${1#*=}"
-      shift
-      ;;
-    --mysql-host=*)
-      MYSQL_HOST="${1#*=}"
-      shift
-      ;;
-     --auth-plugin=*)
-      AUTH_PLUGIN="${1#*=}"
-      shift
-      ;;
-    *)
-      error_exit "Argumento desconhecido: ${1}"
-      ;;
+  --mysql-user=*)
+    TARGET_MYSQL_USER="${1#*=}"
+    shift
+    ;;
+  --mysql-password=*)
+    TARGET_MYSQL_PASSWORD="${1#*=}"
+    shift
+    ;;
+  --permission-level=*)
+    PERMISSION_LEVEL=$(echo "${1#*=}" | tr '[:upper:]' '[:lower:]') # Converte para minúsculas
+    shift
+    ;;
+  --database=*)
+    TARGET_DATABASE="${1#*=}"
+    shift
+    ;;
+  --mysql-host=*)
+    MYSQL_HOST="${1#*=}"
+    shift
+    ;;
+  --auth-plugin=*)
+    AUTH_PLUGIN="${1#*=}"
+    shift
+    ;;
+  *)
+    error_exit "Argumento desconhecido: ${1}"
+    ;;
   esac
 done
 
@@ -92,21 +92,21 @@ fi
 
 # Validar nível de permissão
 if [[ "${PERMISSION_LEVEL}" != "administrator" && "${PERMISSION_LEVEL}" != "default" ]]; then
-    error_exit "Valor inválido para --permission-level. Use 'administrator' ou 'default'."
+  error_exit "Valor inválido para --permission-level. Use 'administrator' ou 'default'."
 fi
 
 # Validar --database se nível for 'default'
 if [[ "${PERMISSION_LEVEL}" == "default" && -z "${TARGET_DATABASE}" ]]; then
-    error_exit "Parâmetro --database é obrigatório quando --permission-level=default."
+  error_exit "Parâmetro --database é obrigatório quando --permission-level=default."
 fi
 
 # === Verificação de Privilégios e .my.cnf ===
 if [[ ${EUID} -ne 0 ]]; then
-   error_exit "Este script precisa ser executado como root (ou com sudo)."
+  error_exit "Este script precisa ser executado como root (ou com sudo)."
 fi
 
 if [[ ! -f "${ROOT_MY_CNF}" ]]; then
-    echo "AVISO: Arquivo ${ROOT_MY_CNF} não encontrado. A autenticação MySQL pode falhar." >&2
+  echo "AVISO: Arquivo ${ROOT_MY_CNF} não encontrado. A autenticação MySQL pode falhar." >&2
 fi
 
 # === Lógica Principal ===
@@ -116,7 +116,7 @@ echo ">>> Iniciando criação do usuário '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}'
 SQL_CREATE_USER="CREATE USER IF NOT EXISTS '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' IDENTIFIED WITH ${AUTH_PLUGIN} BY '${TARGET_MYSQL_PASSWORD}';"
 echo ">>> Executando: CREATE USER..."
 if ! mysql --execute="${SQL_CREATE_USER}"; then
-    error_exit "Falha ao executar CREATE USER. Verifique:"$'\n'"  - Se ${ROOT_MY_CNF} está correto."$'\n'"  - Se o usuário já existe com plugin/host diferente."$'\n'"  - Logs do MySQL."
+  error_exit "Falha ao executar CREATE USER. Verifique:"$'\n'"  - Se ${ROOT_MY_CNF} está correto."$'\n'"  - Se o usuário já existe com plugin/host diferente."$'\n'"  - Logs do MySQL."
 fi
 echo ">>> Usuário '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' criado ou já existente."
 
@@ -124,43 +124,43 @@ echo ">>> Usuário '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' criado ou já existent
 SQL_GRANT=""
 echo ">>> Definindo permissões para nível '${PERMISSION_LEVEL}'..."
 case "${PERMISSION_LEVEL}" in
-    administrator)
-        # CUIDADO: ALL PRIVILEGES é extremamente poderoso.
-        SQL_GRANT="GRANT ALL PRIVILEGES ON *.* TO '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' WITH GRANT OPTION;"
-        ;;
-    default)
-        # Permissões básicas no banco de dados especificado. Adicionar/Remover conforme necessário.
-        # Usar backticks ` ao redor do nome do banco de dados para segurança caso contenha caracteres especiais.
-        SQL_GRANT="GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE, CREATE TEMPORARY TABLES ON \`${TARGET_DATABASE}\`.* TO '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}';"
-        ;;
+administrator)
+  # CUIDADO: ALL PRIVILEGES é extremamente poderoso.
+  SQL_GRANT="GRANT ALL PRIVILEGES ON *.* TO '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' WITH GRANT OPTION;"
+  ;;
+default)
+  # Permissões básicas no banco de dados especificado. Adicionar/Remover conforme necessário.
+  # Usar backticks ` ao redor do nome do banco de dados para segurança caso contenha caracteres especiais.
+  SQL_GRANT="GRANT SELECT, INSERT, UPDATE, DELETE, EXECUTE, CREATE TEMPORARY TABLES ON \`${TARGET_DATABASE}\`.* TO '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}';"
+  ;;
 esac
 
 # 3. Executar GRANT
 if [[ -n "${SQL_GRANT}" ]]; then
-    echo ">>> Executando: GRANT..."
-    if ! mysql --execute="${SQL_GRANT}"; then
-        # Tentar reverter a criação do usuário pode ser complexo, apenas reportar erro.
-        error_exit "Falha ao executar GRANT. Verifique:"$'\n'"  - Se o banco de dados '${TARGET_DATABASE}' existe (para nível default)."$'\n'"  - Permissões do usuário em ${ROOT_MY_CNF}."$'\n'"  - Logs do MySQL."
-    fi
-    echo ">>> Permissões concedidas com sucesso."
+  echo ">>> Executando: GRANT..."
+  if ! mysql --execute="${SQL_GRANT}"; then
+    # Tentar reverter a criação do usuário pode ser complexo, apenas reportar erro.
+    error_exit "Falha ao executar GRANT. Verifique:"$'\n'"  - Se o banco de dados '${TARGET_DATABASE}' existe (para nível default)."$'\n'"  - Permissões do usuário em ${ROOT_MY_CNF}."$'\n'"  - Logs do MySQL."
+  fi
+  echo ">>> Permissões concedidas com sucesso."
 else
-    # Isso não deveria acontecer devido à validação anterior, mas é uma segurança.
-    error_exit "Falha interna: Nenhuma instrução GRANT foi definida."
+  # Isso não deveria acontecer devido à validação anterior, mas é uma segurança.
+  error_exit "Falha interna: Nenhuma instrução GRANT foi definida."
 fi
 
 # 4. Aplicar privilégios
 echo ">>> Executando: FLUSH PRIVILEGES..."
 if ! mysql --execute="FLUSH PRIVILEGES;"; then
-    # Geralmente não crítico, mas informa o usuário.
-    echo "AVISO: Falha ao executar FLUSH PRIVILEGES. As permissões podem levar um tempo para serem aplicadas ou exigir reinício do serviço." >&2
+  # Geralmente não crítico, mas informa o usuário.
+  echo "AVISO: Falha ao executar FLUSH PRIVILEGES. As permissões podem levar um tempo para serem aplicadas ou exigir reinício do serviço." >&2
 fi
 
 echo ">>> Usuário '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' criado e configurado com sucesso!"
 if [[ "${PERMISSION_LEVEL}" == "default" ]]; then
-    echo ">>> Permissões (default) aplicadas ao banco de dados: '${TARGET_DATABASE}'"
+  echo ">>> Permissões (default) aplicadas ao banco de dados: '${TARGET_DATABASE}'"
 fi
 if [[ "${PERMISSION_LEVEL}" == "administrator" ]]; then
-    echo ">>> ATENÇÃO: Usuário criado com privilégios de ADMINISTRADOR TOTAL!"
+  echo ">>> ATENÇÃO: Usuário criado com privilégios de ADMINISTRADOR TOTAL!"
 fi
 
 exit 0

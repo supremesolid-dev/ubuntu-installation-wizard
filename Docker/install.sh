@@ -9,10 +9,13 @@ BLUE="\033[1;34m"
 NC="\033[0m"
 
 # Funções de log
-log()   { echo -e "${GREEN}[INFO]${NC} $1"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
-error() { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
-info()  { echo -e "${BLUE}[NOTE]${NC} $1"; }
+log() { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
+error() {
+    echo -e "${RED}[ERROR]${NC} $1" >&2
+    exit 1
+}
+info() { echo -e "${BLUE}[NOTE]${NC} $1"; }
 
 # Verificação de root
 if [ "$EUID" -ne 0 ]; then
@@ -20,7 +23,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # Verificação de sistema
-if ! command -v apt-get &> /dev/null; then
+if ! command -v apt-get &>/dev/null; then
     error "Sistema não suportado (apenas apt-get)"
 fi
 
@@ -59,7 +62,7 @@ apt-get update -q
 log "Instalando pacotes Docker (sem iniciar serviço)..."
 
 # Instala com política de não iniciar automaticamente
-cat > /usr/sbin/policy-rc.d <<'EOL'
+cat >/usr/sbin/policy-rc.d <<'EOL'
 #!/bin/sh
 exit 101
 EOL
@@ -78,7 +81,7 @@ rm -f /usr/sbin/policy-rc.d
 # 5. Configuração do daemon
 log "Configurando daemon.json..."
 mkdir -p /etc/docker
-cat > /etc/docker/daemon.json <<'EOL'
+cat >/etc/docker/daemon.json <<'EOL'
 {
   "iptables": false,
   "log-driver": "json-file",
@@ -100,8 +103,8 @@ if [ -n "${CURRENT_USER}" ] && [ "${CURRENT_USER}" != "root" ]; then
     if ! grep -q docker /etc/group; then
         groupadd docker
     fi
-    usermod -aG docker "${CURRENT_USER}" >/dev/null 2>&1 && \
-    info "Usuário ${CURRENT_USER} adicionado ao grupo docker"
+    usermod -aG docker "${CURRENT_USER}" >/dev/null 2>&1 &&
+        info "Usuário ${CURRENT_USER} adicionado ao grupo docker"
 fi
 
 # 8. Verificação final
