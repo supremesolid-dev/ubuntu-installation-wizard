@@ -129,6 +129,7 @@ initialize_lxd() {
 config:
   # Define um intervalo razoável para atualização automática de imagens
   images.auto_update_interval: 60
+  core.https_address: 192.168.0.215:9999
 networks:
   # Configura a bridge padrão lxdbr0
 - name: ${DEFAULT_NETWORK}
