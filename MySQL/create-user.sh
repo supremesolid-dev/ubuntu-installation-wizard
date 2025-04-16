@@ -8,8 +8,7 @@ TARGET_MYSQL_PASSWORD=""
 PERMISSION_LEVEL=""
 TARGET_DATABASE=""
 MYSQL_HOST="localhost"
-AUTH_PLUGIN="mysql_native_password"
-readonly ROOT_MY_CNF="/root/.my.cnf"
+AUTH_PLUGIN="mysql_native_password" # Definido para auth_socket como padrão
 
 # === Funções ===
 error_exit() {
@@ -18,18 +17,18 @@ error_exit() {
 }
 
 usage() {
-  echo "Uso: ${0} --mysql-user=<USUARIO> --mysql-password=<SENHA> --permission-level=<NIVEL> [--database=<DB>] [--mysql-host=<HOST>] [--auth-plugin=<PLUGIN>]"
+  echo "Uso: ${0} --mysql-user=<USUARIO> [--mysql-password=<SENHA>] --permission-level=<NIVEL> [--database=<DB>] [--mysql-host=<HOST>] [--auth-plugin=<PLUGIN>]"
   echo "  Cria um novo usuário MySQL com um nível de permissão predefinido."
   echo
   echo "  Parâmetros Obrigatórios:"
   echo "    --mysql-user=<USUARIO>        Nome do novo usuário MySQL."
-  echo "    --mysql-password=<SENHA>      Senha para o novo usuário."
   echo "    --permission-level=<NIVEL>    Nível de permissão ('administrator' ou 'default')."
   echo
   echo "  Parâmetros Condicionais:"
   echo "    --database=<DB>               Banco de dados alvo. OBRIGATÓRIO se --permission-level=default."
   echo
   echo "  Parâmetros Opcionais:"
+  echo "    --mysql-password=<SENHA>      Senha para o novo usuário (não utilizada com auth_socket)."
   echo "    --mysql-host=<HOST>           Host de onde o novo usuário poderá se conectar (padrão: 'localhost'). Use '%' para qualquer host."
   echo "    --auth-plugin=<PLUGIN>        Plugin de autenticação a ser usado (padrão: 'mysql_native_password')."
   echo
@@ -38,7 +37,7 @@ usage() {
   echo "    default:        SELECT, INSERT, UPDATE, DELETE, EXECUTE, CREATE TEMPORARY TABLES no banco de dados especificado (--database)."
   echo
   echo "  AVISO DE SEGURANÇA: Passar a senha via argumento é inseguro."
-  echo "  REQUISITO: Executar com sudo e um ${ROOT_MY_CNF} válido com credenciais de administrador MySQL."
+  echo "  REQUISITO: Executar com sudo."
   exit 1
 }
 
@@ -83,9 +82,12 @@ done
 if [[ -z "${TARGET_MYSQL_USER}" ]]; then
   error_exit "Parâmetro --mysql-user é obrigatório."
 fi
-if [[ -z "${TARGET_MYSQL_PASSWORD}" ]]; then
-  error_exit "Parâmetro --mysql-password é obrigatório."
+
+# Se o plugin de autenticação não for auth_socket, a senha é obrigatória.
+if [[ "${AUTH_PLUGIN}" != "auth_socket" && -z "${TARGET_MYSQL_PASSWORD}" ]]; then
+  error_exit "Parâmetro --mysql-password é obrigatório para o plugin '${AUTH_PLUGIN}'."
 fi
+
 if [[ -z "${PERMISSION_LEVEL}" ]]; then
   error_exit "Parâmetro --permission-level é obrigatório."
 fi
@@ -100,23 +102,29 @@ if [[ "${PERMISSION_LEVEL}" == "default" && -z "${TARGET_DATABASE}" ]]; then
   error_exit "Parâmetro --database é obrigatório quando --permission-level=default."
 fi
 
-# === Verificação de Privilégios e .my.cnf ===
+# === Verificação de Privilégios ===
 if [[ ${EUID} -ne 0 ]]; then
   error_exit "Este script precisa ser executado como root (ou com sudo)."
 fi
 
-if [[ ! -f "${ROOT_MY_CNF}" ]]; then
-  echo "AVISO: Arquivo ${ROOT_MY_CNF} não encontrado. A autenticação MySQL pode falhar." >&2
+# === Aviso adicional para auth_socket ===
+if [[ "${AUTH_PLUGIN}" == "auth_socket" ]]; then
+  echo ">>> AVISO: Usando auth_socket. A senha informada será ignorada."
 fi
 
 # === Lógica Principal ===
 echo ">>> Iniciando criação do usuário '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' com nível '${PERMISSION_LEVEL}'..."
 
 # 1. Criar o usuário
-SQL_CREATE_USER="CREATE USER IF NOT EXISTS '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' IDENTIFIED WITH ${AUTH_PLUGIN} BY '${TARGET_MYSQL_PASSWORD}';"
+if [[ "${AUTH_PLUGIN}" == "auth_socket" ]]; then
+  SQL_CREATE_USER="CREATE USER IF NOT EXISTS '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' IDENTIFIED WITH ${AUTH_PLUGIN};"
+else
+  SQL_CREATE_USER="CREATE USER IF NOT EXISTS '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' IDENTIFIED WITH ${AUTH_PLUGIN} BY '${TARGET_MYSQL_PASSWORD}';"
+fi
+
 echo ">>> Executando: CREATE USER..."
 if ! mysql --execute="${SQL_CREATE_USER}"; then
-  error_exit "Falha ao executar CREATE USER. Verifique:"$'\n'"  - Se ${ROOT_MY_CNF} está correto."$'\n'"  - Se o usuário já existe com plugin/host diferente."$'\n'"  - Logs do MySQL."
+  error_exit "Falha ao executar CREATE USER. Verifique:"$'\n'"  - Se o usuário já existe com plugin/host diferente."$'\n'"  - Logs do MySQL."
 fi
 echo ">>> Usuário '${TARGET_MYSQL_USER}'@'${MYSQL_HOST}' criado ou já existente."
 
@@ -139,19 +147,16 @@ esac
 if [[ -n "${SQL_GRANT}" ]]; then
   echo ">>> Executando: GRANT..."
   if ! mysql --execute="${SQL_GRANT}"; then
-    # Tentar reverter a criação do usuário pode ser complexo, apenas reportar erro.
-    error_exit "Falha ao executar GRANT. Verifique:"$'\n'"  - Se o banco de dados '${TARGET_DATABASE}' existe (para nível default)."$'\n'"  - Permissões do usuário em ${ROOT_MY_CNF}."$'\n'"  - Logs do MySQL."
+    error_exit "Falha ao executar GRANT. Verifique:"$'\n'"  - Se o banco de dados '${TARGET_DATABASE}' existe (para nível default)."$'\n'"  - Permissões do usuário MySQL."$'\n'"  - Logs do MySQL."
   fi
   echo ">>> Permissões concedidas com sucesso."
 else
-  # Isso não deveria acontecer devido à validação anterior, mas é uma segurança.
   error_exit "Falha interna: Nenhuma instrução GRANT foi definida."
 fi
 
 # 4. Aplicar privilégios
 echo ">>> Executando: FLUSH PRIVILEGES..."
 if ! mysql --execute="FLUSH PRIVILEGES;"; then
-  # Geralmente não crítico, mas informa o usuário.
   echo "AVISO: Falha ao executar FLUSH PRIVILEGES. As permissões podem levar um tempo para serem aplicadas ou exigir reinício do serviço." >&2
 fi
 
